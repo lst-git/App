@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wed Live Cloud POC</title>
+<style>
+:root{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:dark;background:#0b0d10;color:#e8ebef}body{margin:0;background:#0b0d10}.wrap{max-width:980px;margin:0 auto;padding:28px}.top{display:flex;align-items:center;justify-content:space-between;gap:16px}.badge{font-size:12px;padding:5px 9px;border:1px solid #343941;border-radius:999px;color:#aeb5bf}.panel{margin-top:20px;border:1px solid #252a31;border-radius:14px;background:#12151a;padding:18px}.muted{color:#9098a4;font-size:13px}.status{font-size:22px;font-weight:650;margin:8px 0}.plugins{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:14px}.plugin{border:1px solid #2b3139;border-radius:10px;padding:12px;background:#0e1115}.plugin strong{display:block;margin-bottom:6px}button{background:#e8ebef;color:#101216;border:0;border-radius:8px;padding:9px 13px;font-weight:650;cursor:pointer}.ok{color:#8fd694}.err{color:#ff8a8a}code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}</style>
+</head>
+<body><div class="wrap">
+<div class="top"><div><div class="muted">A-GP / CLOUD TEST</div><h1>Wed Live 动态插件 POC</h1></div><span class="badge">不合并 HTML</span></div>
+<div class="panel"><div class="muted">固定云端目录</div><div class="status" id="status">正在扫描 plugins/…</div><div class="muted" id="detail">页面会直接读取 GitHub 目录；新增/删除插件后只需刷新。</div><div style="margin-top:14px"><button id="reload">重新扫描</button></div></div>
+<div class="panel"><div class="muted">已发现并加载</div><div class="plugins" id="plugins"></div></div>
+<div class="panel"><div class="muted">运行日志</div><pre id="log" style="white-space:pre-wrap;line-height:1.55;margin-bottom:0"></pre></div>
+</div>
+<script>
+const OWNER='lst-git',REPO='App',BRANCH='main',DIR='wed-live-poc/plugins';
+const logEl=document.querySelector('#log'), listEl=document.querySelector('#plugins'), statusEl=document.querySelector('#status'), detailEl=document.querySelector('#detail');
+const log=(s)=>{logEl.textContent+=`[${new Date().toLocaleTimeString()}] ${s}\n`};
+window.WED_LIVE={loaded:[],register(meta={}){this.loaded.push(meta);const el=document.createElement('div');el.className='plugin';el.innerHTML=`<strong>${meta.name||meta.id||'未命名插件'}</strong><div class="muted">${meta.id||''}</div><div class="muted">${meta.version||''}</div>`;listEl.appendChild(el);log(`注册：${meta.id||meta.name||'unknown'}`)}};
+async function loadScriptFromText(name,source){return new Promise((resolve,reject)=>{const blob=new Blob([source+`\n//# sourceURL=${name}`],{type:'text/javascript'});const url=URL.createObjectURL(blob);const s=document.createElement('script');s.src=url;s.onload=()=>{URL.revokeObjectURL(url);resolve()};s.onerror=(e)=>{URL.revokeObjectURL(url);reject(e)};document.head.appendChild(s)})}
+async function scan(){statusEl.textContent='正在扫描 plugins/…';detailEl.className='muted';detailEl.textContent='从 GitHub API 获取当前目录。';listEl.innerHTML='';logEl.textContent='';window.WED_LIVE.loaded=[];
+try{const api=`https://api.github.com/repos/${OWNER}/${REPO}/contents/${DIR}?ref=${BRANCH}&_=${Date.now()}`;const r=await fetch(api,{cache:'no-store',headers:{Accept:'application/vnd.github+json'}});if(!r.ok)throw new Error(`目录 API ${r.status}`);const items=(await r.json()).filter(x=>x.type==='file'&&x.name.endsWith('.js')).sort((a,b)=>a.name.localeCompare(b.name,'zh-CN'));log(`发现 ${items.length} 个 .js 文件`);
+for(const f of items){const rr=await fetch(`${f.download_url}?_=${Date.now()}`,{cache:'no-store'});if(!rr.ok){log(`跳过 ${f.name}: HTTP ${rr.status}`);continue}const src=await rr.text();try{await loadScriptFromText(f.name,src);log(`加载 ${f.name}`)}catch(e){log(`失败 ${f.name}: ${e.message||e}`)}}
+statusEl.textContent=`已动态加载 ${window.WED_LIVE.loaded.length} / ${items.length} 个插件`;statusEl.className='status ok';detailEl.textContent='没有生成新的组合 HTML。改变 plugins/ 目录后点击“重新扫描”或刷新页面。';}
+catch(e){statusEl.textContent='扫描失败';statusEl.className='status err';detailEl.textContent=String(e);log(String(e))}}
+document.querySelector('#reload').onclick=scan;scan();
+</script></body></html>
