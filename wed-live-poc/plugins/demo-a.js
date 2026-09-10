@@ -1,0 +1,1 @@
+window.WED_LIVE?.register({id:'demo.a',name:'演示插件 A',version:'V1'});
